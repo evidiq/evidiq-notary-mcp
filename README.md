@@ -180,7 +180,7 @@ OG_STORAGE_INDEXER=https://indexer-storage-turbo.0g.ai
   "signature": "0x2f012d7f… (EIP-191)",
   "notaryAddress": "0x8a3c7524Aaed081825aC88eC7f4cCECFc583ee7D",
   "timestamp": "2026-07-17T00:41:15.303Z",
-  "modelId": "gpt-4",
+  "modelId": "glm-5.2",
   "merkleRoot": "0xfbd95c81…eeb1",
   "merkleProof": ["0x…"],
   "storageRoot": "0xae8526f7…e894",

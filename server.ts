@@ -32,7 +32,7 @@ export const handler = createMcpHandler(
         inputSchema: {
           prompt: z.string().min(1).max(100000).describe("The prompt sent to the AI model"),
           response: z.string().min(1).max(100000).describe("The AI model's response"),
-          modelId: z.string().min(1).max(100).describe("Model identifier (e.g., 'gpt-4', 'claude-3-opus', 'glm-5.2')"),
+          modelId: z.string().min(1).max(100).describe("Model identifier (e.g., 'glm-5.2', 'gpt-4', 'claude-3-opus')"),
           agentId: z.string().optional().describe("Optional agent identifier for cross-referencing"),
           trustReportHash: z.string().optional().describe("Optional hash of associated trust report"),
           context: z.string().optional().describe("Optional context about the inference"),
