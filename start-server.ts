@@ -1,8 +1,13 @@
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
 import { handler } from "./server.js";
+import { withX402Gate } from "./lib/x402/gate.js";
+import { getNotaryConfig } from "./lib/x402/config.js";
+import { buildDiscoveryResponse } from "./lib/x402/challenge.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const HOSTNAME = process.env.HOSTNAME || "0.0.0.0";
+
+const gatedHandler = withX402Gate(handler);
 
 function toWebHeaders(headers: IncomingHttpHeaders): Headers {
   const webHeaders = new Headers();
@@ -82,6 +87,20 @@ const server = createServer(async (req, res) => {
   }
 
   const path = new URL(req.url || "/", getOrigin(req)).pathname;
+
+  // x402 pricing discovery — GET /x402 returns the challenge (200, not 402).
+  if (path === "/x402") {
+    const cfg = getNotaryConfig();
+    if (cfg) {
+      const dr = buildDiscoveryResponse(cfg, `${getOrigin(req)}${path}`);
+      await sendWebResponse(dr, res);
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ x402: false, note: "No x402 config — all tools are free." }));
+    return;
+  }
+
   if (!["/mcp", "/sse", "/message"].includes(path)) {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not Found");
@@ -89,7 +108,7 @@ const server = createServer(async (req, res) => {
   }
 
   try {
-    const response = await handler(await createWebRequest(req));
+    const response = await gatedHandler(await createWebRequest(req));
     await sendWebResponse(response, res);
   } catch (error) {
     console.error("MCP request failed", error);

@@ -1,4 +1,4 @@
-import { keccak256, stringToBytes, encodePacked } from "viem";
+import { keccak256, stringToBytes, encodePacked, recoverMessageAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { getOgConfig } from "../og/config.js";
 
@@ -13,6 +13,23 @@ import { getOgConfig } from "../og/config.js";
 
 const ogConfig = getOgConfig();
 const notaryAccount = ogConfig ? privateKeyToAccount(ogConfig.privateKey) : null;
+
+/** Persistent in-memory receipt store (survives batch clears). */
+const receiptStore = new Map<string, {
+  promptHash: string;
+  responseHash: string;
+  combinedHash: string;
+  signature: string;
+  notaryAddress: string;
+  merkleRoot: string;
+  merkleProof: string[];
+  timestamp: number;
+  modelId: string;
+}>();
+
+/** Cumulative counters (not reset by clearBatch). */
+let totalNotarizations = 0;
+let totalBatches = 0;
 
 const batch: Array<{
   id: string;
@@ -146,6 +163,20 @@ export async function createReceipt(
   const proof = proofs.get(combinedHash) || [];
   const signature = await signReceipt(combinedHash, root);
 
+  const receiptRecord = {
+    promptHash,
+    responseHash,
+    combinedHash,
+    signature,
+    notaryAddress: notaryAccount?.address || "0x",
+    merkleRoot: root,
+    merkleProof: proof,
+    timestamp: Date.now(),
+    modelId,
+  };
+  receiptStore.set(combinedHash, receiptRecord);
+  totalNotarizations++;
+
   return {
     promptHash,
     responseHash,
@@ -168,13 +199,13 @@ export function getStats(): {
   notaryAddress: string;
 } {
   const modelCounts = new Map<string, number>();
-  for (const item of batch) {
-    modelCounts.set(item.modelId, (modelCounts.get(item.modelId) || 0) + 1);
+  for (const [, r] of receiptStore) {
+    modelCounts.set(r.modelId, (modelCounts.get(r.modelId) || 0) + 1);
   }
 
   return {
-    totalNotarizations: batch.length,
-    totalBatches: batchRoot ? 1 : 0,
+    totalNotarizations,
+    totalBatches,
     latestBatchRoot: batchRoot,
     latestBatchTx: batchTx,
     topModels: Array.from(modelCounts.entries())
@@ -183,6 +214,104 @@ export function getStats(): {
       .slice(0, 10),
     notaryAddress: notaryAccount?.address || "0xNotConfigured",
   };
+}
+
+/**
+ * Verify a receipt: recompute hashes, recover EIP-191 signer, check Merkle proof.
+ */
+export async function verifyReceipt(
+  attestationId: string,
+  prompt: string,
+  response: string
+): Promise<{
+  valid: boolean;
+  contentMatch: boolean;
+  signatureValid: boolean;
+  merkleValid: boolean;
+  notaryAddress: string;
+  note: string;
+}> {
+  const { combinedHash } = hashPromptResponse(prompt, response);
+  const contentMatch = combinedHash.toLowerCase() === attestationId.toLowerCase();
+
+  const stored = receiptStore.get(combinedHash);
+  if (!stored) {
+    return {
+      valid: false,
+      contentMatch,
+      signatureValid: false,
+      merkleValid: false,
+      notaryAddress: notaryAccount?.address || "0x",
+      note: "Receipt not found in store. It may have been created in a previous server session — fetch from 0G Storage using the storageTx.",
+    };
+  }
+
+  // Verify EIP-191 signature.
+  let signatureValid = false;
+  if (stored.signature && stored.signature !== "0x" && notaryAccount) {
+    try {
+      const msg = attestationMessage(stored.combinedHash, stored.merkleRoot);
+      const recovered = await recoverMessageAddress({
+        message: msg,
+        signature: stored.signature as `0x${string}`,
+      });
+      signatureValid =
+        recovered.toLowerCase() === stored.notaryAddress.toLowerCase();
+    } catch {
+      signatureValid = false;
+    }
+  }
+
+  // Verify Merkle proof: rebuild root from leaf + proof siblings.
+  let merkleValid = false;
+  try {
+    let current = combinedHash as `0x${string}`;
+    for (const sibling of stored.merkleProof) {
+      const sib = sibling as `0x${string}`;
+      // Try both orderings (we don't store left/right position).
+      const optionA = keccak256(encodePacked(["bytes32", "bytes32"], [current, sib]));
+      const optionB = keccak256(encodePacked(["bytes32", "bytes32"], [sib, current]));
+      current = optionA; // default; if wrong, try B
+      // Heuristic: pick the one that eventually matches root — for single-step
+      // proofs we can check both at the end.
+      void optionB;
+    }
+    merkleValid = current.toLowerCase() === stored.merkleRoot.toLowerCase();
+    // If option A failed, try all orderings via brute force for short proofs.
+    if (!merkleValid && stored.merkleProof.length <= 4) {
+      for (let mask = 0; mask < 1 << stored.merkleProof.length; mask++) {
+        let cur = combinedHash as `0x${string}`;
+        for (let i = 0; i < stored.merkleProof.length; i++) {
+          const sib = stored.merkleProof[i] as `0x${string}`;
+          cur = (mask >> i) & 1
+            ? keccak256(encodePacked(["bytes32", "bytes32"], [sib, cur]))
+            : keccak256(encodePacked(["bytes32", "bytes32"], [cur, sib]));
+        }
+        if (cur.toLowerCase() === stored.merkleRoot.toLowerCase()) {
+          merkleValid = true;
+          break;
+        }
+      }
+    }
+  } catch {
+    merkleValid = false;
+  }
+
+  return {
+    valid: contentMatch && signatureValid && merkleValid,
+    contentMatch,
+    signatureValid,
+    merkleValid,
+    notaryAddress: stored.notaryAddress,
+    note: contentMatch && signatureValid && merkleValid
+      ? "Receipt verified: content hash matches, EIP-191 signature valid, Merkle proof valid."
+      : `Verification incomplete: contentMatch=${contentMatch}, signatureValid=${signatureValid}, merkleValid=${merkleValid}`,
+  };
+}
+
+/** Look up a receipt by attestationId from the in-memory store. */
+export function getReceipt(attestationId: string) {
+  return receiptStore.get(attestationId) || null;
 }
 
 /** The notary's address (EVM) — recoverable from any receipt signature. */
@@ -208,6 +337,7 @@ export function setBatchTx(tx: string) {
 }
 
 export function clearBatch() {
+  if (batch.length > 0) totalBatches++;
   batch.length = 0;
   batchRoot = undefined;
   batchTx = undefined;

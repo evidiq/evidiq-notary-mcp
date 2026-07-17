@@ -7,6 +7,8 @@ import {
   clearBatch,
   getNotaryAddress,
   hasNotaryKey,
+  verifyReceipt,
+  getReceipt,
 } from "./lib/crypto/notary.js";
 import { uploadJson } from "./lib/og/storage.js";
 import { getOgConfig } from "./lib/og/config.js";
@@ -165,14 +167,17 @@ export const handler = createMcpHandler(
         },
       },
       async (args) => {
+        const result = await verifyReceipt(args.attestationId, args.prompt, args.response);
         return {
           content: [
             { type: "text", text: JSON.stringify({
-              valid: false,
+              valid: result.valid,
               attestationId: args.attestationId,
-              contentMatch: false,
-              signatureValid: false,
-              note: "Verification requires fetching from 0G Storage. Use get_receipt to fetch proof material first."
+              contentMatch: result.contentMatch,
+              signatureValid: result.signatureValid,
+              merkleValid: result.merkleValid,
+              notaryAddress: result.notaryAddress,
+              note: result.note,
             }, null, 2) }
           ],
         };
@@ -189,11 +194,33 @@ export const handler = createMcpHandler(
         },
       },
       async (args) => {
+        const stored = getReceipt(args.attestationId);
+        if (stored) {
+          return {
+            content: [
+              { type: "text", text: JSON.stringify({
+                attestationId: args.attestationId,
+                found: true,
+                promptHash: stored.promptHash,
+                responseHash: stored.responseHash,
+                contentHash: stored.combinedHash,
+                signature: stored.signature,
+                notaryAddress: stored.notaryAddress,
+                merkleRoot: stored.merkleRoot,
+                merkleProof: stored.merkleProof,
+                timestamp: new Date(stored.timestamp).toISOString(),
+                modelId: stored.modelId,
+                note: "Receipt fetched from notary store. For off-chain persistence, fetch from 0G Storage using the storageTx/storageRoot returned at notarization time.",
+              }, null, 2) }
+            ],
+          };
+        }
         return {
           content: [
             { type: "text", text: JSON.stringify({
               attestationId: args.attestationId,
-              note: "Fetch from 0G Storage using storageTx or storageRoot. Use the 0G indexer or RPC."
+              found: false,
+              note: "Receipt not in store. Fetch from 0G Storage using the storageTx or storageRoot from the original notarize_inference response.",
             }, null, 2) }
           ],
         };
