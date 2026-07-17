@@ -61,8 +61,8 @@ HTTP 402 challenge; sign it and retry.
 
 | Tool | Cost | Description |
 |------|------|-------------|
-| `notarize_inference` | $0.05 USDT0 | Single AI output notarization — signed receipt + 0G anchor |
-| `notarize_batch` | $0.05 USDT0 | Up to 20 inferences in one call (audit trails) |
+| `notarize_inference` | $0.001 USDT0 | Single AI output notarization — signed receipt + 0G anchor |
+| `notarize_batch` | $0.005 USDT0 | Up to 20 inferences in one call (audit trails) |
 | `verify_attestation` | Free | Verify receipt: EIP-191 signature + content hash + Merkle proof |
 | `get_receipt` | Free | Fetch proof material for an attestation |
 | `notary_stats` | Free | Live volume, top models, notary address |
@@ -74,8 +74,8 @@ EVIDIQ Notary owns signing, anchoring, and verification, and settles on open inf
 
 - **0G Storage** — every receipt is anchored on 0G mainnet (Aristotle, chain 16661) via the `@0gfoundation/0g-ts-sdk`. Tamper-evident, durable, and fetchable by anyone.
 - **x402 v2** — per-call settlement (EIP-3009 `exact` / `transferWithAuthorization`), gasless for the payer, settled on-chain by the notary's `X402_SETTLE_KEY`.
-- **X Layer / USDT0** — the OKX A2MCP settlement token (`0x779ded…`, 6 decimals), `$0.05 = 50000` atomic.
-- **EIP-191** — receipts are signed with the notary's EVM key (the same `OG_PRIVATE_KEY` that attests EVIDIQ Trust Reports — see [EVIDIQ-RUNBOOK.md §13](https://github.com/evidiq/evidiq)).
+- **X Layer / USDT0** — the OKX A2MCP settlement token (`0x779ded…`, 6 decimals). Per-tool pricing: `$0.001 = 1000` atomic (single), `$0.005 = 5000` atomic (batch).
+- **EIP-191** — receipts are signed with the notary's EVM key (`OG_PRIVATE_KEY`). The same signature any verifier can recover offline.
 
 ## Proven on-chain
 
@@ -86,7 +86,7 @@ the **receipt** is anchored on 0G Storage. Both from live calls, not mockups.
 
 | | |
 |---|---|
-| Amount | `0.05 USDT0` on X Layer (`eip155:196`) |
+| Amount | `0.001 USDT0` on X Layer (`eip155:196`) — per-tool pricing (batch: `0.005`) |
 | Flow | HTTP 402 → EIP-3009 signature → `transferWithAuthorization` (gasless for the payer) |
 | Tx | [`0x53f72073…0070f2`](https://www.oklink.com/xlayer/tx/0x53f72073820d7958d18c86c5f436ccb1e53af510c2079c329b08eb1abd0070f2) · SUCCESS |
 
@@ -111,6 +111,23 @@ curl -s https://mcp.evidiq.dev/notary/x402 | python3 -m json.tool
 ```
 
 Payment on one chain, tamper-evident proof on 0G — the whole receipt is auditable end to end.
+
+## Pricing
+
+Per-tool pricing — `notarize_inference` and `notarize_batch` are paid (x402); receipts are anchor + signed; everything else is free.
+
+| Operation | Cost | Token | Chain | Atomic |
+|-----------|------|-------|-------|--------|
+| `notarize_inference` (single) | $0.001 | USDT0 | X Layer (`eip155:196`) | 1000 |
+| `notarize_batch` (≤20 items) | $0.005 | USDT0 | X Layer (`eip155:196`) | 5000 |
+| `verify_attestation` | Free | — | — | — |
+| `get_receipt` | Free | — | — | — |
+| `notary_stats` | Free | — | — | — |
+| `notary_pubkey` | Free | — | — | — |
+
+**Payment**: x402 v2 protocol (EIP-3009 `transferWithAuthorization` on X Layer). No API keys, no accounts — the challenge quotes the right price per tool; sign it and retry.
+
+Live discovery: `GET https://mcp.evidiq.dev/notary/x402` returns the full per-tool pricing table.
 
 ## Architecture
 
@@ -158,7 +175,8 @@ OG_PRIVATE_KEY=0x...
 X402_CHAIN=x-layer
 X402_ASSET=0x779ded0c9e1022225f8e0630b35a9b54be713736
 X402_PAY_TO=0x2a8efe3093278bb4bd3b2d9c7b5ba992ca4fc9b0
-X402_PRICE=50000                  # $0.05 USDT0 (6 decimals)
+X402_PRICE=1000                   # $0.001 USDT0 per single notarization (6 decimals)
+X402_BATCH_PRICE=5000             # $0.005 USDT0 per batch (≤20 items)
 X402_DOMAIN_NAME=USD₮0
 X402_DOMAIN_VERSION=1
 X402_SETTLE_KEY=0x...             # Gas-funded X Layer wallet

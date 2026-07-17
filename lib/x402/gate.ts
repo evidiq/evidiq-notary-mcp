@@ -35,6 +35,23 @@ function isPaidCall(msg: JsonRpcCall): boolean {
   );
 }
 
+/** Pick the right price (atomic) for a specific paid tool. Inference uses
+ *  X402_PRICE; notarize_batch uses X402_BATCH_PRICE (covers up to 20 items). */
+function priceForTool(toolName: string | undefined, cfg: { price: bigint; batchPrice: bigint }): bigint {
+  if (toolName === "notarize_batch") return cfg.batchPrice;
+  return cfg.price;
+}
+
+/** Find the paid tool name in a JSON-RPC batch (if any). */
+function paidToolIn(messages: JsonRpcCall[]): string | undefined {
+  for (const m of messages) {
+    if (m?.method === "tools/call" && typeof m?.params?.name === "string" && PAID_TOOLS.has(m.params.name)) {
+      return m.params.name;
+    }
+  }
+  return undefined;
+}
+
 function acceptsEventStream(accept: string | null): boolean {
   if (!accept) return false;
   return (
@@ -161,18 +178,21 @@ export function withX402Gate(
     }
 
     const payment = decodePaymentHeader(req);
+    const toolName = paidToolIn(messages);
+    const amount = priceForTool(toolName, cfg);
     if (!payment) {
-      return build402Response(cfg, resourceUrl, undefined);
+      return build402Response(cfg, resourceUrl, undefined, amount);
     }
 
-    const reqs = buildAccepts(cfg)[0];
+    const reqs = buildAccepts(cfg, amount)[0];
     const verifier = getVerifier(cfg);
     const verdict = await verifier.verify(payment, reqs);
     if (!verdict.valid) {
       return build402Response(
         cfg,
         resourceUrl,
-        `invalid payment: ${verdict.reason}`
+        `invalid payment: ${verdict.reason}`,
+        amount
       );
     }
 
@@ -181,7 +201,8 @@ export function withX402Gate(
       return build402Response(
         cfg,
         resourceUrl,
-        `settlement failed: ${settlement.errorReason ?? "unknown"}`
+        `settlement failed: ${settlement.errorReason ?? "unknown"}`,
+        amount
       );
     }
 
@@ -191,7 +212,7 @@ export function withX402Gate(
       "payment-response": encodePaymentResponseHeader({
         status: settlement.transaction ? "settled" : "verified",
         transaction: settlement.transaction,
-        amount: cfg.price.toString(),
+        amount: amount.toString(),
         payer: verdict.payer,
       }),
     });

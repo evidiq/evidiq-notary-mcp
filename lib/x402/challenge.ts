@@ -26,13 +26,17 @@ function buildResource(resourceUrl: string): X402Resource {
   };
 }
 
-export function buildAccepts(cfg: NotaryConfig): PaymentRequirements[] {
+export function buildAccepts(
+  cfg: NotaryConfig,
+  amountOverride?: bigint
+): PaymentRequirements[] {
+  const amount = (amountOverride ?? cfg.price).toString();
   return [
     {
       scheme: "exact",
       network: cfg.network,
       asset: cfg.asset,
-      amount: cfg.price.toString(),
+      amount,
       payTo: cfg.payTo,
       maxTimeoutSeconds: 300,
       extra: { name: cfg.domainName, version: cfg.domainVersion },
@@ -46,25 +50,34 @@ type Challenge = {
   accepts: PaymentRequirements[];
 };
 
-function challenge(cfg: NotaryConfig, resourceUrl: string): Challenge {
+function challenge(
+  cfg: NotaryConfig,
+  resourceUrl: string,
+  amountOverride?: bigint
+): Challenge {
   return {
     x402Version: 2,
     resource: buildResource(resourceUrl),
-    accepts: buildAccepts(cfg),
+    accepts: buildAccepts(cfg, amountOverride),
   };
 }
 
-function paymentRequiredHeader(cfg: NotaryConfig, resourceUrl: string): string {
-  return b64(challenge(cfg, resourceUrl));
+function paymentRequiredHeader(
+  cfg: NotaryConfig,
+  resourceUrl: string,
+  amountOverride?: bigint
+): string {
+  return b64(challenge(cfg, resourceUrl, amountOverride));
 }
 
 export function build402Response(
   cfg: NotaryConfig,
   resourceUrl: string,
-  error?: string
+  error?: string,
+  amountOverride?: bigint
 ): Response {
   const body = {
-    ...challenge(cfg, resourceUrl),
+    ...challenge(cfg, resourceUrl, amountOverride),
     error:
       error ??
       `Payment required. Sign the x402 v2 challenge (PAYMENT-REQUIRED header / accepts[] below) and retry with a PAYMENT-SIGNATURE header. Free tools (verify_attestation, get_receipt, notary_stats, notary_pubkey) need no payment.`,
@@ -74,7 +87,7 @@ export function build402Response(
     headers: {
       "content-type": "application/json",
       "cache-control": "no-store",
-      "payment-required": paymentRequiredHeader(cfg, resourceUrl),
+      "payment-required": paymentRequiredHeader(cfg, resourceUrl, amountOverride),
     },
   });
 }
@@ -83,7 +96,22 @@ export function buildDiscoveryResponse(
   cfg: NotaryConfig,
   resourceUrl: string
 ): Response {
-  return new Response(JSON.stringify(challenge(cfg, resourceUrl), null, 2), {
+  // Discovery lists BOTH price tiers so callers can quote the right amount
+  // before their first paid call.
+  const discovery = {
+    x402Version: 2,
+    resource: buildResource(resourceUrl),
+    accepts: buildAccepts(cfg),
+    pricing: [
+      { tool: "notarize_inference", amount: cfg.price.toString(), usd: Number(cfg.price) / 1e6 },
+      { tool: "notarize_batch", amount: cfg.batchPrice.toString(), usd: Number(cfg.batchPrice) / 1e6 },
+      { tool: "verify_attestation", amount: "0", usd: 0, free: true },
+      { tool: "get_receipt", amount: "0", usd: 0, free: true },
+      { tool: "notary_stats", amount: "0", usd: 0, free: true },
+      { tool: "notary_pubkey", amount: "0", usd: 0, free: true },
+    ],
+  };
+  return new Response(JSON.stringify(discovery, null, 2), {
     status: 200,
     headers: {
       "content-type": "application/json",

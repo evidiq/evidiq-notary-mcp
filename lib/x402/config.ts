@@ -75,6 +75,7 @@ export function getNotaryConfig(): NotaryConfig | null {
     X402_DOMAIN_NAME: process.env.X402_DOMAIN_NAME || undefined,
     X402_DOMAIN_VERSION: process.env.X402_DOMAIN_VERSION || undefined,
     X402_PRICE: process.env.X402_PRICE || undefined,
+    X402_BATCH_PRICE: process.env.X402_BATCH_PRICE || undefined,
     X402_FACILITATOR_URL: process.env.X402_FACILITATOR_URL || undefined,
     X402_RPC: process.env.X402_RPC || undefined,
     X402_SETTLE_KEY: process.env.X402_SETTLE_KEY || undefined,
