@@ -21,9 +21,10 @@ ENV HOSTNAME=0.0.0.0
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-# Copy built output and libs
+# Copy built output, libs, and public skill document
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/lib ./lib
+COPY --from=builder /app/skill.md ./skill.md
 
 EXPOSE 3000
 CMD ["node", "dist/start-server.js"]

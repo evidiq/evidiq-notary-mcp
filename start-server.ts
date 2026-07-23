@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
 import { handler } from "./server.js";
 import { withX402Gate } from "./lib/x402/gate.js";
@@ -77,6 +78,19 @@ const server = createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  if (req.url === "/skill.md") {
+    try {
+      const skill = await readFile(new URL("../skill.md", import.meta.url), "utf8");
+      res.writeHead(200, { "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "public, max-age=300" });
+      res.end(skill);
+    } catch (error) {
+      console.error("Failed to read skill.md", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Skill document is unavailable" }));
+    }
     return;
   }
 
