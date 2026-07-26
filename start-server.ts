@@ -121,6 +121,20 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // HEAD must answer with the status a GET would return and no body. The MCP
+  // Streamable-HTTP transport cannot serve HEAD, so a HEAD forwarded to it never
+  // completes — the connection just hangs and a reachability prober reports the
+  // endpoint as offline. Answer it here instead.
+  if (req.method === "HEAD") {
+    res.writeHead(getNotaryConfig() ? 402 : 200, {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      Allow: "POST, OPTIONS, HEAD",
+    });
+    res.end();
+    return;
+  }
+
   try {
     const response = await gatedHandler(await createWebRequest(req));
     await sendWebResponse(response, res);
