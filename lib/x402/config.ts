@@ -19,6 +19,13 @@ function resolveNetwork(): string | undefined {
 const XLAYER_USDT0 = "0x779ded0c9e1022225f8e0630b35a9b54be713736";
 const XLAYER_RPC = "https://rpc.xlayer.tech";
 
+/**
+ * The proxy strips the /notary path prefix before the container sees a request,
+ * so req.url would advertise a resource of https://mcp.evidiq.dev/mcp — which
+ * belongs to EVIDIQ Core. Payment challenges must name this service instead.
+ */
+export const DEFAULT_PUBLIC_BASE_URL = "https://mcp.evidiq.dev/notary";
+
 const envSchema = z.object({
   network: z.string().regex(/^eip155:\d+$/, "network must resolve to CAIP-2, e.g. eip155:196"),
   X402_ASSET: z.string().regex(/^0x[0-9a-fA-F]{40}$/, "X402_ASSET must be a 0x... token address"),
@@ -32,6 +39,7 @@ const envSchema = z.object({
   X402_SETTLE_KEY: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "X402_SETTLE_KEY must be a 0x... 32-byte private key").optional(),
   X402_GATE_ALL: z.string().optional(),
   X402_USE_FACILITATOR: z.string().optional(),
+  PUBLIC_BASE_URL: z.string().url().default(DEFAULT_PUBLIC_BASE_URL),
 });
 
 export type NotaryConfig = {
@@ -49,6 +57,7 @@ export type NotaryConfig = {
   notaryPrivateKey?: `0x${string}`;
   gateAll: boolean;
   useFacilitator: boolean;
+  publicBaseUrl: string;
 };
 
 export function getNotaryConfig(): NotaryConfig | null {
@@ -81,6 +90,7 @@ export function getNotaryConfig(): NotaryConfig | null {
     X402_SETTLE_KEY: process.env.X402_SETTLE_KEY || undefined,
     X402_GATE_ALL: process.env.X402_GATE_ALL || undefined,
     X402_USE_FACILITATOR: process.env.X402_USE_FACILITATOR || undefined,
+    PUBLIC_BASE_URL: process.env.PUBLIC_BASE_URL?.trim() || undefined,
   });
 
   return {
@@ -98,5 +108,6 @@ export function getNotaryConfig(): NotaryConfig | null {
     notaryPrivateKey: process.env.NOTARY_PRIVATE_KEY as `0x${string}` | undefined,
     gateAll: env.X402_GATE_ALL === "1",
     useFacilitator: env.X402_USE_FACILITATOR === "1",
+    publicBaseUrl: env.PUBLIC_BASE_URL.replace(/\/+$/, ""),
   };
 }

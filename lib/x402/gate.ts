@@ -132,7 +132,9 @@ export function withX402Gate(
     const cfg = getNotaryConfig();
     if (!cfg) return handler(req);
 
-    const resourceUrl = req.url;
+    // Sourced from config, never from req.url: the proxy strips /notary, so the
+    // request URL would name EVIDIQ Core's endpoint as the paid resource.
+    const resourceUrl = `${cfg.publicBaseUrl}/mcp`;
 
     if (req.method !== "POST") {
       const res = await handler(req);
@@ -152,6 +154,14 @@ export function withX402Gate(
       // Malformed JSON — reply immediately (forwarding would hang SSE).
     }
     if (!parseOk) {
+      // OKX's reachability probe POSTs an empty body and reads any non-402/200
+      // reply as an unreachable endpoint. Answer an unauthenticated probe with
+      // the payment challenge instead. A caller that did send a payment header
+      // still gets a parse error, because charging for an unreadable request
+      // would be wrong.
+      if (!req.headers.get("payment-signature")) {
+        return build402Response(cfg, resourceUrl);
+      }
       return new Response(
         JSON.stringify({
           jsonrpc: "2.0",
