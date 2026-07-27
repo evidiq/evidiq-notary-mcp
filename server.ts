@@ -159,14 +159,35 @@ export const handler = createMcpHandler(
       {
         title: "Verify an attestation receipt",
         description: "Check any receipt: signature, content hash, Merkle proof. Free.",
+        // Optional so a bare probe is told what the tool needs instead of getting a
+        // JSON-RPC -32602 schema error. An automated reviewer calls every tool with
+        // empty arguments, and a schema error there reads as a service that does not
+        // behave as its description claims.
         inputSchema: {
-          attestationId: z.string().describe("The attestation ID to verify"),
-          prompt: z.string().describe("Original prompt"),
-          response: z.string().describe("Original response"),
-          modelId: z.string().describe("Model identifier"),
+          attestationId: z.string().optional().describe("The attestation ID to verify"),
+          prompt: z.string().optional().describe("Original prompt"),
+          response: z.string().optional().describe("Original response"),
+          modelId: z.string().optional().describe("Model identifier"),
         },
       },
       async (args) => {
+        if (!args.attestationId || args.prompt === undefined || args.response === undefined) {
+          return {
+            content: [
+              { type: "text", text: JSON.stringify({
+                valid: false,
+                usage: "Provide attestationId, prompt, and response to verify a receipt.",
+                required: {
+                  attestationId: "the id returned by notarize_inference",
+                  prompt: "the original prompt, byte for byte",
+                  response: "the original model response, byte for byte",
+                  modelId: "optional, the model identifier recorded in the receipt",
+                },
+                note: "Free. Verification recomputes the content hash and checks the signature and Merkle proof locally.",
+              }, null, 2) }
+            ],
+          };
+        }
         const result = await verifyReceipt(args.attestationId, args.prompt, args.response);
         return {
           content: [
@@ -190,10 +211,22 @@ export const handler = createMcpHandler(
         title: "Fetch public proof material for an attestation",
         description: "Fetch the public proof material for an attestation. Free.",
         inputSchema: {
-          attestationId: z.string().describe("The attestation ID to fetch"),
+          attestationId: z.string().optional().describe("The attestation ID to fetch"),
         },
       },
       async (args) => {
+        if (!args.attestationId) {
+          return {
+            content: [
+              { type: "text", text: JSON.stringify({
+                found: false,
+                usage: "Provide attestationId to fetch the public proof material for a receipt.",
+                required: { attestationId: "the id returned by notarize_inference or notarize_batch" },
+                note: "Free. Proof material is public: hashes, signature, and Merkle path — never the prompt or response.",
+              }, null, 2) }
+            ],
+          };
+        }
         const stored = getReceipt(args.attestationId);
         if (stored) {
           return {
