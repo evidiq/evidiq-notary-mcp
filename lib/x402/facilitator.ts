@@ -7,6 +7,7 @@ import type {
   VerifyResult,
 } from "./types.js";
 import { verifyPaymentLocal } from "./verify.js";
+import { OkxSdkVerifier, getOkxCredentials } from "./okx.js";
 
 /**
  * Payment verification/settlement abstraction.
@@ -126,6 +127,12 @@ export class FacilitatorClient implements PaymentVerifier {
 }
 
 export function getVerifier(cfg: NotaryConfig): PaymentVerifier {
+  // The official OKX Onchain OS Payment SDK takes precedence whenever its
+  // credentials are configured: verification and settlement then run through
+  // the OKX facilitator rather than a key this service holds.
+  const okx = getOkxCredentials();
+  if (okx) return new OkxSdkVerifier(cfg, okx);
+
   if (cfg.useFacilitator) return new FacilitatorClient(cfg);
   if (cfg.settleKey) return new OnchainSettler(cfg);
   return new LocalVerifier(cfg);
