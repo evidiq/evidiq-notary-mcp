@@ -17,12 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://mcp.evidiq.dev/notary/mcp"><img src="https://img.shields.io/badge/MCP%20Server-Live-6E56CF?style=flat-square" alt="MCP Server" /></a>
-  <a href="https://0g.ai"><img src="https://img.shields.io/badge/0G-Storage-00C2A8?style=flat-square" alt="0G Storage" /></a>
-  <a href="https://www.oklink.com/xlayer"><img src="https://img.shields.io/badge/X%20Layer-Settlement-3CCF4E?style=flat-square" alt="X Layer" /></a>
-  <a href="https://mcp.evidiq.dev/notary/x402"><img src="https://img.shields.io/badge/x402-pay--per--call-2563EB?style=flat-square" alt="x402" /></a>
-  <a href="https://okx.ai"><img src="https://img.shields.io/badge/OKX.AI-A2MCP-121212?style=flat-square&logo=okx&logoColor=white" alt="OKX.AI" /></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-3DA639?style=flat-square" alt="License: MIT" /></a>
+  <a href="https://mcp.evidiq.dev/notary/mcp"><img src="https://img.shields.io/badge/MCP%20Server-Live-6E56CF?style=flat-square" alt="MCP Server" /></a> <a href="https://0g.ai"><img src="https://img.shields.io/badge/0G-Storage-00C2A8?style=flat-square" alt="0G Storage" /></a> <a href="https://www.oklink.com/xlayer"><img src="https://img.shields.io/badge/X%20Layer-Settlement-3CCF4E?style=flat-square" alt="X Layer" /></a> <a href="https://mcp.evidiq.dev/notary/x402"><img src="https://img.shields.io/badge/x402-pay--per--call-2563EB?style=flat-square" alt="x402" /></a> <a href="https://www.okx.ai/agents/6278"><img src="https://img.shields.io/badge/OKX.AI-Agent%20%236278%20Listed-121212?style=flat-square&logo=okx&logoColor=white" alt="OKX.AI Agent 6278 listed" /></a> <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-3DA639?style=flat-square" alt="License: MIT" /></a>
 </p>
 
 ---

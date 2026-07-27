@@ -33,3 +33,6 @@ Thumbs.db
 .cache/
 coverage/
 *.tgz
+
+# Internal build plan — not part of the published service.
+PLAN.md
