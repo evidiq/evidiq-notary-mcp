@@ -54,6 +54,7 @@ export function decodePaymentHeader(req: Request): PaymentPayload | null {
       x402Version: v2.data.x402Version,
       scheme: v2.data.accepted.scheme,
       network: v2.data.accepted.network,
+      accepted: v2.data.accepted as PaymentRequirements,
       payload: v2.data.payload,
     } as PaymentPayload;
   } catch {

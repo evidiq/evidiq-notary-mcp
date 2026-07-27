@@ -34,6 +34,12 @@ export type PaymentPayload = {
   x402Version: number;
   scheme: "exact";
   network: string;
+  /**
+   * The requirements the client agreed to, exactly as they arrived. The OKX SDK
+   * compares this against the requirements it verifies against, so dropping it
+   * makes the facilitator answer `param_mismatch`.
+   */
+  accepted?: PaymentRequirements;
   payload: {
     signature: Hex;
     authorization: Eip3009Authorization;
